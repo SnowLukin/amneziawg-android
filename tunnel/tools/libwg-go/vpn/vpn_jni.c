@@ -15,6 +15,8 @@ extern int awgGetSocketV6(int handle);
 extern char *awgGetConfig(int handle);
 extern char *awgVersion();
 extern int awgUpdateTunnelPeers(int handle, struct go_string settings);
+extern int awgConfigureLogHistory(struct go_string json);
+extern char *awgGetLogHistoryState();
 
 JNIEXPORT jint JNICALL Java_org_amnezia_awg_GoBackend_awgTurnOn(JNIEnv *env, jclass c, jstring ifname, jint tun_fd, jstring settings, jstring uapipath)
 {
@@ -87,4 +89,33 @@ JNIEXPORT jint JNICALL Java_org_amnezia_awg_GoBackend_awgUpdateTunnelPeers(JNIEn
     });
     (*env)->ReleaseStringUTFChars(env, settings, settings_str);
     return ret;
+}
+
+JNIEXPORT jint JNICALL Java_org_amnezia_awg_GoBackend_configureLogHistory(JNIEnv *env, jclass c, jstring json)
+{
+	const char *json_str;
+	size_t json_len;
+	int ret;
+
+	if (!json)
+		return awgConfigureLogHistory((struct go_string){ .str = "", .n = 0 });
+	json_str = (*env)->GetStringUTFChars(env, json, 0);
+	if (!json_str)
+		return -1;
+	json_len = (*env)->GetStringUTFLength(env, json);
+	ret = awgConfigureLogHistory((struct go_string){ .str = json_str, .n = json_len });
+	(*env)->ReleaseStringUTFChars(env, json, json_str);
+	return ret;
+}
+
+JNIEXPORT jstring JNICALL Java_org_amnezia_awg_GoBackend_getLogHistoryState(JNIEnv *env, jclass c)
+{
+	char *state = awgGetLogHistoryState();
+	jstring ret;
+
+	if (!state)
+		return (*env)->NewStringUTF(env, "{\"v\":1,\"status\":\"failed\"}");
+	ret = (*env)->NewStringUTF(env, state);
+	free(state);
+	return ret;
 }

@@ -17,4 +17,8 @@ public class GoBackend {
     public static native int awgUpdateTunnelPeers(int handle, String settings);
 
     public static native String awgVersion();
+
+    public static native int configureLogHistory(String json);
+
+    public static native String getLogHistoryState();
 }

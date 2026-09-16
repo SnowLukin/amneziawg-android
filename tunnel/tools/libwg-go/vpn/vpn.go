@@ -234,3 +234,16 @@ func awgVersion() *C.char {
 	}
 	return C.CString("unknown")
 }
+
+//export awgConfigureLogHistory
+func awgConfigureLogHistory(json string) int32 {
+	if err := shared.ConfigureLogHistory(json); err != nil {
+		return -1
+	}
+	return 0
+}
+
+//export awgGetLogHistoryState
+func awgGetLogHistoryState() *C.char {
+	return C.CString(shared.GetLogHistoryState())
+}
