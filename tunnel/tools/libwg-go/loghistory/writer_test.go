@@ -120,6 +120,91 @@ func TestWorkerReportsDroppedEventsWhenPendingBudgetIsFull(t *testing.T) {
 	}
 }
 
+func TestWorkerDroppedMarkerStaysOutsideDataQueueWithTinyBudget(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Policy.MaxPendingBytes = 1
+	w, err := newWorker(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.writer.mu.Lock()
+	w.Log("debug", "event cannot fit in the pending budget")
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		w.mu.Lock()
+		dropped, pending := w.dropped, w.pending
+		w.mu.Unlock()
+		if dropped == 0 {
+			if pending > cfg.Policy.MaxPendingBytes {
+				w.writer.mu.Unlock()
+				t.Fatalf("pending bytes exceeded data queue budget: %d", pending)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			w.writer.mu.Unlock()
+			t.Fatal("worker did not start writing dropped marker")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	w.writer.mu.Unlock()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	records := readRecords(t, cfg.Directory)
+	if len(records) != 1 || records[0]["kind"] != "dropped" {
+		t.Fatalf("missing dropped record: %#v", records)
+	}
+}
+
+func TestWorkerWritesDroppedMarkerAfterQueuedDataBeforeClose(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Policy.MaxPendingBytes = 256
+	w, err := newWorker(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.writer.mu.Lock()
+	w.Log("debug", "first")
+	w.Log("debug", "second cannot fit while first is pending")
+	w.mu.Lock()
+	pending, dropped := w.pending, w.dropped
+	w.mu.Unlock()
+	if pending == 0 || dropped != 1 {
+		w.writer.mu.Unlock()
+		t.Fatalf("unexpected queue state: pending=%d dropped=%d", pending, dropped)
+	}
+	closed := make(chan error, 1)
+	go func() { closed <- w.Close() }()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		w.mu.Lock()
+		closing := w.closing
+		w.mu.Unlock()
+		if closing {
+			break
+		}
+		if time.Now().After(deadline) {
+			w.writer.mu.Unlock()
+			t.Fatal("close did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	w.writer.mu.Unlock()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("close did not drain worker")
+	}
+	records := readRecords(t, cfg.Directory)
+	if len(records) != 2 || records[0]["message"] != "first" || records[1]["kind"] != "dropped" {
+		t.Fatalf("unexpected record order: %#v", records)
+	}
+}
+
 func TestWorkerKeepsFailedStateAfterRotationError(t *testing.T) {
 	cfg := testConfig(t)
 	encoded, err := json.Marshal(cfg)

@@ -393,15 +393,29 @@ func (w *worker) run() {
 		<-w.wake
 		for {
 			w.mu.Lock()
+			var marker []byte
+			var markerErr error
 			if len(w.queue) == 0 && w.dropped > 0 {
-				data, _ := encode(w.config, Event{Timestamp: time.Now(), Level: "warning", Kind: "dropped", Message: fmt.Sprintf("%d log events dropped: pending byte limit", w.dropped)})
-				w.queue = append(w.queue, data)
-				w.pending += int64(len(data))
+				marker, markerErr = encode(w.config, Event{Timestamp: time.Now(), Level: "warning", Kind: "dropped", Message: fmt.Sprintf("%d log events dropped: pending byte limit", w.dropped)})
 				w.dropped = 0
 			}
 			if len(w.queue) == 0 {
 				closing := w.closing
 				w.mu.Unlock()
+				if markerErr != nil {
+					w.writer.mu.Lock()
+					w.err = w.writer.fail("record_too_large", markerErr)
+					w.writer.mu.Unlock()
+					return
+				}
+				if marker != nil {
+					if err := w.writer.writeRecord(marker); err != nil {
+						w.err = err
+						_ = w.writer.Close()
+						return
+					}
+					continue
+				}
 				if closing {
 					w.err = w.writer.Close()
 					return
