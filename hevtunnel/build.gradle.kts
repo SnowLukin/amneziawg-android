@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.blancvpn"
-version = "1.0.1-log-history.2"
+version = "1.0.1-log-history.3"
 
 android {
     namespace = "org.amnezia.awg.hevtunnel"
