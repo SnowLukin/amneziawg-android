@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"unsafe"
 
+	"github.com/amnezia-vpn/amneziawg-android/loghistory"
 	"github.com/amnezia-vpn/amneziawg-go/device"
 	"golang.org/x/sys/unix"
 )
@@ -38,18 +39,32 @@ func init() {
 					n--
 				}
 				buf[n] = 0
+				message := string(buf[:n])
 				C.__android_log_write(C.ANDROID_LOG_ERROR, cstring("AmneziaWG/Stacktrace"), (*C.char)(unsafe.Pointer(&buf[0])))
+				loghistory.Log("error", message)
 			}
 		}
 	}()
 }
 
 func LogDebug(tag string, format string, args ...interface{}) {
-	C.__android_log_write(C.ANDROID_LOG_DEBUG, cstring(tag), cstring(fmt.Sprintf(format, args...)))
+	message := fmt.Sprintf(format, args...)
+	C.__android_log_write(C.ANDROID_LOG_DEBUG, cstring(tag), cstring(message))
+	loghistory.Log("debug", message)
 }
 
 func LogError(tag string, format string, args ...interface{}) {
-	C.__android_log_write(C.ANDROID_LOG_ERROR, cstring(tag), cstring(fmt.Sprintf(format, args...)))
+	message := fmt.Sprintf(format, args...)
+	C.__android_log_write(C.ANDROID_LOG_ERROR, cstring(tag), cstring(message))
+	loghistory.Log("error", message)
+}
+
+func ConfigureLogHistory(json string) error {
+	return loghistory.Configure(json)
+}
+
+func GetLogHistoryState() string {
+	return loghistory.StateJSON()
 }
 
 func NewLogger(tag string) *device.Logger {
