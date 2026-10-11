@@ -84,7 +84,7 @@ afterEvaluate {
 
 dependencies {
 
-    implementation(libs.hev.tunnel)
+    implementation(project(":hevtunnel"))
 
     implementation(libs.androidx.annotation)
     runtimeOnly(libs.androidx.collection)
@@ -101,9 +101,9 @@ dependencies {
 publishing {
     publications {
         register<MavenPublication>("release") {
-            groupId = "com.zaneschepke"
+            groupId = "com.blancvpn"
             artifactId = "amneziawg-android"
-            version = providers.gradleProperty("amneziawgVersionName").get()
+            version = "2.3.7-log-history.4"
             afterEvaluate {
                 from(components["release"])
             }
